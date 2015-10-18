@@ -6,7 +6,15 @@
 
 namespace tarnpricing {
 
-template<class T>
+template<typename T>
+struct Vector
+{
+	typedef blitz::Array<T,1> type;
+};
+
+typedef blitz::Array<double,1> RealVector;
+
+template<typename T>
 struct Matrix
 {
 	typedef blitz::Array<T,2> type;

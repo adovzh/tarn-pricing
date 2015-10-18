@@ -50,6 +50,11 @@ int main()
 	Timeline T(0.0, 5.0, 10);
 	std::cout << "Timeline: " << T << std::endl;
 
+	blitz::Array<double,1> time_points(5);
+	time_points = .35, .85, 1.15, 1.75, 1.89;
+	Timeline T2(time_points);
+	std::cout << "Timeline: " << T2 << std::endl; 
+
 	return 0;
 }
 
