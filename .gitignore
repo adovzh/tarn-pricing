@@ -1,4 +1,5 @@
 Debug
+*.opensdf
 *.sln
 *.sdf
 *.suo

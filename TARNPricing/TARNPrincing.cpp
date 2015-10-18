@@ -1,12 +1,15 @@
 #include <iostream>
 #include <random/normal.h>
-#include "MonteCarloEngine.h"
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/moment.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
+#include <boost/bind.hpp>
+
+#include "MonteCarloEngine.h"
+#include "RandomMatrix.h"
 
 using namespace tarnpricing;
 using namespace boost::accumulators;
@@ -37,9 +40,20 @@ public:
 
 int main()
 {
-	ranlib::NormalUnit<double> normalDist;
+	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
+	RandomMatrix<double> matrix_rng(rng, 3, 5);
+
+	Matrix<double>::type& matrix = matrix_rng();
+	std::cout << matrix << std::endl;
+	return 0;
+}
+
+int main1()
+{
+	// ranlib::NormalUnit<double> normalDist;
+	BoostRNG<double>::type rng = boost::bind(std::mem_fun(&ranlib::NormalUnit<double>::random), &ranlib::NormalUnit<double>());
 	BoostAccumulator<double>::type accumulator;
-	MonteCarloEngine<double,double,ranlib::NormalUnit<double> > engine(identity, normalDist);
+	MonteCarloEngine<double,double> engine(identity, rng);
 
 	const unsigned long nSimulations = 10000;
 	engine.simulate(accumulator, nSimulations);
@@ -58,4 +72,6 @@ int main()
 
 	std::cout << "Mean: " << testAccum.mean() << "\t" << mean(boostAccumulator) << std::endl;
 	std::cout << "Stdev: " << testAccum.stdev() << "\t" << std::sqrt(variance(boostAccumulator) / (count(boostAccumulator) - 1)) << std::endl;
+
+	return 0;
 }
