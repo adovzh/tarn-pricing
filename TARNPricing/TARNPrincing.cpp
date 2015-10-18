@@ -10,6 +10,7 @@
 
 #include "MonteCarloEngine.h"
 #include "RandomMatrix.h"
+#include "Timeline.h"
 
 using namespace tarnpricing;
 using namespace boost::accumulators;
@@ -45,6 +46,10 @@ int main()
 
 	Matrix<double>::type& matrix = matrix_rng();
 	std::cout << matrix << std::endl;
+
+	Timeline T(0.0, 5.0, 10);
+	std::cout << "Timeline: " << T << std::endl;
+
 	return 0;
 }
 
