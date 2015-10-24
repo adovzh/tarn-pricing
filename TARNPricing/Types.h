@@ -30,6 +30,8 @@ struct BoostRNG
 	typedef boost::function<ARG ()> type;
 };
 
+typedef boost::function<RealVector (double, double)> Volatility;
+
 TP_NAMESPACE_END
 
 #endif // __TARNPRICING_TYPES_H

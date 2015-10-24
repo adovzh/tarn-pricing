@@ -21,6 +21,7 @@ public:
 	// delta(i) = T(i + 1) - T(i)
 	double delta(int i) const { return deltas(i); }
 	int length() const { return time_points.extent(blitz::firstDim); }
+	double operator()(int i) { return time_points(i); }
 
 	typedef boost::shared_ptr<Timeline> Ptr;
 	friend std::ostream& operator<<(std::ostream& out, const Timeline& timeline);

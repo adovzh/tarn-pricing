@@ -1,3 +1,5 @@
+#define LOGGING_ENABLED
+
 #include <iostream>
 #include <random/normal.h>
 
@@ -8,11 +10,13 @@
 #include <boost/accumulators/statistics/variance.hpp>
 #include <boost/bind.hpp>
 
+#include "Logging.h"
 #include "MonteCarloEngine.h"
 #include "RandomMatrix.h"
 #include "Timeline.h"
 #include "LowerTriangularMatrix.h"
 #include "LIBORMarketModel.h"
+#include "ParameterisedVolatility.h"
 
 using namespace tarnpricing;
 using namespace boost::accumulators;
@@ -41,90 +45,154 @@ public:
 	double count() const { return n; }
 };
 
+
 int main()
 {
-	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, 10));
-	LIBORMarketModel model(timeline);
+	try
+	{
+	const int n = 3;
+	const int dim = 3;
+
+	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, n));
 
 	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
-	RandomMatrix<double> matrix_rng(rng, 3, 5);
+	RandomMatrix<double> matrix_rng(rng, dim, n);
 	RealMatrix randomDraw = matrix_rng();
 	LowerTriangularMatrix rates(timeline->length());
 
-	int shift = 10;
-	RealVector initial(timeline->length() - shift);
+	RealVector initial(timeline->length());
 	initial = 0.05;
-	rates.setColumn(shift, initial);
+	rates.setColumn(0, initial);
 
-	std::cout << "Underlying rates" << rates << std::endl;
+	RealVector a(dim), c(dim), v(dim);
+	a = 0.1; c = 0.1;
+	ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility (dim, timeline, a, c));
+	//const ParameterisedVolatility& vol = *pvol;
+	//vol(1, 2, v);
 
-	model(randomDraw, rates);
+	std::cout << "v = " << v << std::endl;
 
+	LIBORMarketModel<ParameterisedVolatility> model(timeline, pvol);
+
+#ifdef LOGGING_ENABLED
 	for (int i = 0; i < timeline->length(); i++) {
+		std::cout << __LOG_PREFIX__;
 		for (int j = 0; j <= i; j++) {
 			std::cout << rates(i, j) << " ";
 		}
 		std::cout << std::endl;
 	}
+#endif
 
-	return 0;
-}
+	model(randomDraw, rates);
 
-int main2()
-{
-	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
-	RandomMatrix<double> matrix_rng(rng, 3, 5);
-
-	Matrix<double>::type& matrix = matrix_rng();
-	std::cout << matrix << std::endl;
-
-	Timeline T(0.0, 5.0, 10);
-	std::cout << "Timeline: " << T << std::endl;
-
-	blitz::Array<double,1> time_points(5);
-	time_points = .35, .85, 1.15, 1.75, 1.89;
-	Timeline T2(time_points);
-	std::cout << "Timeline: " << T2 << std::endl;
-
-	LowerTriangularMatrix m(4);
-
-	for (int i = 0, s = 0; i < 4; i++)
-		for (int j = 0; j <= i; j++, s++)
-			m(i, j) = s + .07;
-
-	// std::cout << "Underlying vector: " << m.values << std::endl;
-
-	for (int i = 0; i < 4; i++)
-		for (int j = 0; j <= i; j++)
-			std::cout << "m(" << i << "," << j << ") = " << m(i, j) << std::endl;
-
-	return 0;
-}
-
-int main1()
-{
-	// ranlib::NormalUnit<double> normalDist;
-	BoostRNG<double>::type rng = boost::bind(std::mem_fun(&ranlib::NormalUnit<double>::random), &ranlib::NormalUnit<double>());
-	BoostAccumulator<double>::type accumulator;
-	MonteCarloEngine<double,double> engine(identity, rng);
-
-	const unsigned long nSimulations = 10000;
-	engine.simulate(accumulator, nSimulations);
-
-	std::cout << "Hello, World !" << std::endl;
-	std::cout << "Result: " << mean(accumulator) << std::endl;
-	
-	SimpleAccum testAccum;
-	accumulator_set<double, stats<tag::variance(lazy) > > boostAccumulator;
-
-	for (double d = 1.2, i = 0; i < 10; d += 1.1, i++)
-	{
-		testAccum(d);
-		boostAccumulator(d);
+#ifdef LOGGING_ENABLED
+	for (int i = 0; i < timeline->length(); i++) {
+		std::cout << __LOG_PREFIX__;
+		for (int j = 0; j <= i; j++) {
+			std::cout << rates(i, j) << " ";
+		}
+		std::cout << std::endl;
 	}
-
-	std::cout << "Mean: " << testAccum.mean() << "\t" << mean(boostAccumulator) << std::endl;
-	std::cout << "Stdev: " << testAccum.stdev() << "\t" << std::sqrt(variance(boostAccumulator) / (count(boostAccumulator) - 1)) << std::endl;
-
+#endif
+	}
+	catch (std::logic_error e) {
+		std::cerr << e.what() << std::endl;
+	}
 	return 0;
 }
+
+//int main3()
+//{
+//	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, 10));
+//	LIBORMarketModel model(timeline);
+//
+//	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
+//	RandomMatrix<double> matrix_rng(rng, 3, 5);
+//	RealMatrix randomDraw = matrix_rng();
+//	LowerTriangularMatrix rates(timeline->length());
+//
+//	int shift = 4;
+//	RealVector initial(timeline->length() - shift);
+//	initial = 0.05;
+//	rates.setColumn(shift, initial);
+//
+//	std::cout << "Underlying rates" << rates << std::endl;
+//
+//	model(randomDraw, rates);
+//
+//	for (int i = 0; i < timeline->length(); i++) {
+//		for (int j = 0; j <= i; j++) {
+//			std::cout << rates(i, j) << " ";
+//		}
+//		std::cout << std::endl;
+//	}
+//
+//	for (int i = 0; i < timeline->length(); i++)
+//	{
+//		RealVector v(timeline->length() - i);
+//		rates.getColumn(i, v);
+//		std::cout << "Column " << i << ": " << v << std::endl;
+//	}
+//
+//	return 0;
+//}
+//
+//int main2()
+//{
+//	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
+//	RandomMatrix<double> matrix_rng(rng, 3, 5);
+//
+//	Matrix<double>::type& matrix = matrix_rng();
+//	std::cout << matrix << std::endl;
+//
+//	Timeline T(0.0, 5.0, 10);
+//	std::cout << "Timeline: " << T << std::endl;
+//
+//	blitz::Array<double,1> time_points(5);
+//	time_points = .35, .85, 1.15, 1.75, 1.89;
+//	Timeline T2(time_points);
+//	std::cout << "Timeline: " << T2 << std::endl;
+//
+//	LowerTriangularMatrix m(4);
+//
+//	for (int i = 0, s = 0; i < 4; i++)
+//		for (int j = 0; j <= i; j++, s++)
+//			m(i, j) = s + .07;
+//
+//	// std::cout << "Underlying vector: " << m.values << std::endl;
+//
+//	for (int i = 0; i < 4; i++)
+//		for (int j = 0; j <= i; j++)
+//			std::cout << "m(" << i << "," << j << ") = " << m(i, j) << std::endl;
+//
+//	return 0;
+//}
+//
+//int main1()
+//{
+//	// ranlib::NormalUnit<double> normalDist;
+//	BoostRNG<double>::type rng = boost::bind(std::mem_fun(&ranlib::NormalUnit<double>::random), &ranlib::NormalUnit<double>());
+//	BoostAccumulator<double>::type accumulator;
+//	MonteCarloEngine<double,double> engine(identity, rng);
+//
+//	const unsigned long nSimulations = 10000;
+//	engine.simulate(accumulator, nSimulations);
+//
+//	std::cout << "Hello, World !" << std::endl;
+//	std::cout << "Result: " << mean(accumulator) << std::endl;
+//	
+//	SimpleAccum testAccum;
+//	accumulator_set<double, stats<tag::variance(lazy) > > boostAccumulator;
+//
+//	for (double d = 1.2, i = 0; i < 10; d += 1.1, i++)
+//	{
+//		testAccum(d);
+//		boostAccumulator(d);
+//	}
+//
+//	std::cout << "Mean: " << testAccum.mean() << "\t" << mean(boostAccumulator) << std::endl;
+//	std::cout << "Stdev: " << testAccum.stdev() << "\t" << std::sqrt(variance(boostAccumulator) / (count(boostAccumulator) - 1)) << std::endl;
+//
+//	return 0;
+//}
