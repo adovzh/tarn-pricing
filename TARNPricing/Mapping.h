@@ -1,6 +1,10 @@
 #ifndef __TARNPRICING_MAPPING_H
 #define __TARNPRICING_MAPPING_H
 
+#include "TARNPricing.h"
+
+TP_NAMESPACE(tarnpricing)
+
 template<typename price_process, typename mapped_rv>
 class Mapping
 {
@@ -24,5 +28,7 @@ Mapping<price_process, mapped_rv>::mapping(mapped_rv x)
 	// implement the mapping
 	return 0;
 }
+
+TP_NAMESPACE_END
 
 #endif // __TARNPRICING_MAPPING_H

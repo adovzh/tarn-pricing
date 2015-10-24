@@ -11,6 +11,8 @@
 #include "MonteCarloEngine.h"
 #include "RandomMatrix.h"
 #include "Timeline.h"
+#include "LowerTriangularMatrix.h"
+#include "LIBORMarketModel.h"
 
 using namespace tarnpricing;
 using namespace boost::accumulators;
@@ -41,6 +43,35 @@ public:
 
 int main()
 {
+	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, 10));
+	LIBORMarketModel model(timeline);
+
+	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
+	RandomMatrix<double> matrix_rng(rng, 3, 5);
+	RealMatrix randomDraw = matrix_rng();
+	LowerTriangularMatrix rates(timeline->length());
+
+	int shift = 10;
+	RealVector initial(timeline->length() - shift);
+	initial = 0.05;
+	rates.setColumn(shift, initial);
+
+	std::cout << "Underlying rates" << rates << std::endl;
+
+	model(randomDraw, rates);
+
+	for (int i = 0; i < timeline->length(); i++) {
+		for (int j = 0; j <= i; j++) {
+			std::cout << rates(i, j) << " ";
+		}
+		std::cout << std::endl;
+	}
+
+	return 0;
+}
+
+int main2()
+{
 	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
 	RandomMatrix<double> matrix_rng(rng, 3, 5);
 
@@ -53,7 +84,19 @@ int main()
 	blitz::Array<double,1> time_points(5);
 	time_points = .35, .85, 1.15, 1.75, 1.89;
 	Timeline T2(time_points);
-	std::cout << "Timeline: " << T2 << std::endl; 
+	std::cout << "Timeline: " << T2 << std::endl;
+
+	LowerTriangularMatrix m(4);
+
+	for (int i = 0, s = 0; i < 4; i++)
+		for (int j = 0; j <= i; j++, s++)
+			m(i, j) = s + .07;
+
+	// std::cout << "Underlying vector: " << m.values << std::endl;
+
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j <= i; j++)
+			std::cout << "m(" << i << "," << j << ") = " << m(i, j) << std::endl;
 
 	return 0;
 }

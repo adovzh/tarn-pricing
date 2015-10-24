@@ -3,8 +3,9 @@
 
 #include <boost/function.hpp>
 #include <blitz/array.h>
+#include "TARNPricing.h"
 
-namespace tarnpricing {
+TP_NAMESPACE(tarnpricing)
 
 template<typename T>
 struct Vector
@@ -21,12 +22,14 @@ struct Matrix
 	typedef blitz::Array<T,2>& Ref;
 };
 
+typedef blitz::Array<double,2> RealMatrix;
+
 template<typename ARG>
 struct BoostRNG
 {
 	typedef boost::function<ARG ()> type;
 };
 
-} // namespace tarnpricing
+TP_NAMESPACE_END
 
 #endif // __TARNPRICING_TYPES_H
