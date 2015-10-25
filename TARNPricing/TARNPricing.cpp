@@ -50,8 +50,8 @@ int main()
 {
 	try
 	{
-	const int n = 3;
-	const int dim = 3;
+	const int n = 10;
+	const int dim = 1;
 
 	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, n));
 
@@ -67,8 +67,6 @@ int main()
 	RealVector a(dim), c(dim), v(dim);
 	a = 0.1; c = 0.1;
 	ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility (dim, timeline, a, c));
-	//const ParameterisedVolatility& vol = *pvol;
-	//vol(1, 2, v);
 
 	std::cout << "v = " << v << std::endl;
 
