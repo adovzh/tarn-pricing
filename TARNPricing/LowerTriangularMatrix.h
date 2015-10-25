@@ -6,6 +6,8 @@
 
 namespace tarnpricing {
 
+	//typedef RealMatrix LowerTriangularMatrix;
+
 class LowerTriangularMatrix
 {
 private:

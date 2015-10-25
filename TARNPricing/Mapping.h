@@ -1,34 +1,41 @@
 #ifndef __TARNPRICING_MAPPING_H
 #define __TARNPRICING_MAPPING_H
 
-#include "TARNPricing.h"
+#include "Types.h"
+#include "Payoff.h"
+#include "LowerTriangularMatrix.h"
 
-TP_NAMESPACE(tarnpricing)
+namespace tarnpricing {
 
-template<typename price_process, typename mapped_rv>
+template<typename MODEL, typename mapped_rv, typename MODEL_PTR = MODEL::Ptr>
 class Mapping
 {
-private:
-	price_process& process;
-
 public:
-	Mapping();
+	Mapping(const MODEL_PTR& _model, const Payoff::ConstPtr& _payoff);
 	double mapping(mapped_rv x);
+private:
+	const MODEL_PTR model;
+	const Payoff::ConstPtr payoff;
+	LowerTriangularMatrix rates;
 };
 
-template<typename price_process, typename mapped_rv>
-Mapping<price_process, mapped_rv>::Mapping(price_process& _process): process(_process)
+template<typename MODEL, typename mapped_rv, typename MODEL_PTR>
+Mapping<MODEL, mapped_rv, MODEL_PTR>::Mapping(const MODEL_PTR& _model, const Payoff::ConstPtr& _payoff): model(_model), payoff(_payoff), rates(_payoff->timeline()->length())
 {
-	// set timeline from payoff to process
+	// set timeline from payoff to model
+	model->timeline(payoff->timeline());
+	rates.setColumn(0, model->initial());
+	// rates(blitz::Range::all(), 0) = model->initial();
 }
 
-template<typename price_process, typename mapped_rv>
-Mapping<price_process, mapped_rv>::mapping(mapped_rv x)
+template<typename MODEL, typename mapped_rv, typename MODEL_PTR>
+double Mapping<MODEL, mapped_rv, MODEL_PTR>::mapping(mapped_rv x)
 {
 	// implement the mapping
-	return 0;
+	(*model)(x, rates);
+	return (*payoff)(rates);
 }
 
-TP_NAMESPACE_END
+} // namespace tarnpricing
 
 #endif // __TARNPRICING_MAPPING_H

@@ -9,9 +9,6 @@
 namespace tarnpricing {
 
 class Timeline {
-private:
-	RealVector time_points;
-	RealVector deltas;
 public:
 	// constructor is inlined
 	Timeline(double start, double maturity, int periods);
@@ -20,11 +17,15 @@ public:
 	// inline
 	// delta(i) = T(i + 1) - T(i)
 	double delta(int i) const { return deltas(i); }
-	int length() const { return time_points.extent(blitz::firstDim); }
-	double operator()(int i) { return time_points(i); }
+	int length() const { return deltas.extent(blitz::firstDim); }
+	double operator()(int i) const { return time_points(i); }
 
 	typedef boost::shared_ptr<Timeline> Ptr;
+	typedef boost::shared_ptr<const Timeline> ConstPtr;
 	friend std::ostream& operator<<(std::ostream& out, const Timeline& timeline);
+private:
+	RealVector time_points;
+	RealVector deltas;
 }; // class Timeline
 
 } // namespace tarnpricing

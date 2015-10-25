@@ -1,5 +1,3 @@
-#define LOGGING_ENABLED
-
 #include <iostream>
 #include <random/normal.h>
 
@@ -9,6 +7,7 @@
 #include <boost/accumulators/statistics/moment.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
 #include <boost/bind.hpp>
+#include <boost/math/distributions/normal.hpp>
 
 #include "Logging.h"
 #include "MonteCarloEngine.h"
@@ -17,6 +16,8 @@
 #include "LowerTriangularMatrix.h"
 #include "LIBORMarketModel.h"
 #include "ParameterisedVolatility.h"
+#include "Mapping.h"
+#include "CapletPayoff.h"
 
 using namespace tarnpricing;
 using namespace boost::accumulators;
@@ -48,57 +49,112 @@ public:
 
 int main()
 {
-	try
+	try 
 	{
-	const int n = 10;
-	const int dim = 1;
+		const int dim = 3;
+		const int n = 2;
 
-	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, n));
+		RealVector rvPoints(n + 1);
+		rvPoints = 0, 10, 10.5;
+		Timeline::ConstPtr timeline = Timeline::ConstPtr(new Timeline(rvPoints));
 
-	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
-	RandomMatrix<double> matrix_rng(rng, dim, n);
-	RealMatrix randomDraw = matrix_rng();
-	LowerTriangularMatrix rates(timeline->length());
+		ranlib::NormalUnit<double> normal;
+		// normal.seed((unsigned int)time(0));
+		BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &normal);
+		RandomMatrix<double> matrix_rng(rng, dim, n);
 
-	RealVector initial(timeline->length());
-	initial = 0.05;
-	rates.setColumn(0, initial);
+		RealVector initial(n);
+		initial = 0.05;
 
-	RealVector a(dim), c(dim), v(dim);
-	a = 0.1; c = 0.1;
-	ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility (dim, timeline, a, c));
+		RealVector a(dim), c(dim), v(dim);
+		a = 0.1; c = 0.1;
+		ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility(dim, timeline, a, c));
 
-	std::cout << "v = " << v << std::endl;
+		LIBORMarketModel<ParameterisedVolatility>::Ptr model(new LIBORMarketModel<ParameterisedVolatility>(timeline, pvol, initial));
+		CapletPayoff::ConstPtr payoff(new CapletPayoff(0.0, 10.0, 10.5, .05));
+		Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix> mapping(model, payoff);
 
-	LIBORMarketModel<ParameterisedVolatility> model(timeline, pvol);
+		MonteCarloEngine<RealMatrix, double, RandomMatrix<double> > engine(boost::bind(&Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix>::mapping, &mapping, _1), matrix_rng);
+		BoostAccumulator<double>::type accumulator;
 
-#ifdef LOGGING_ENABLED
-	for (int i = 0; i < timeline->length(); i++) {
-		std::cout << __LOG_PREFIX__;
-		for (int j = 0; j <= i; j++) {
-			std::cout << rates(i, j) << " ";
-		}
-		std::cout << std::endl;
+		engine.simulate(accumulator, 10000);
+	
+		INFO_MESSAGE("Mean: "<< mean(accumulator))
+		INFO_MESSAGE("Stdev: " << std::sqrt(variance(accumulator) / (count(accumulator) - 1)))
+
+		boost::math::normal s;
+		RealVector sigmaVec(dim);
+		(*pvol)(0, 1, sigmaVec);
+		double sigma2 = blitz::sum(sigmaVec * sigmaVec);
+		double d1 = (log(.05 / .05) + sigma2 * 10 / 2) / sqrt(sigma2 * 10);
+		double d2 = (log(.05 / .05) - sigma2 * 10 / 2) / sqrt(sigma2 * 10);
+		double x = (.05 * boost::math::cdf(s, d1) - .05 * boost::math::cdf(s, d2)) * .5 / ((1 + 10 * .05) * (1 + 0.5 * 0.05));
+		INFO_MESSAGE("theoretical: " << x)
 	}
-#endif
-
-	model(randomDraw, rates);
-
-#ifdef LOGGING_ENABLED
-	for (int i = 0; i < timeline->length(); i++) {
-		std::cout << __LOG_PREFIX__;
-		for (int j = 0; j <= i; j++) {
-			std::cout << rates(i, j) << " ";
-		}
-		std::cout << std::endl;
-	}
-#endif
-	}
-	catch (std::logic_error e) {
+	catch (std::logic_error e)
+	{
 		std::cerr << e.what() << std::endl;
 	}
+
 	return 0;
 }
+
+//int main4()
+//{
+//	try
+//	{
+//		const int n = 1;
+//		const int dim = 1;
+//
+//		// Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 10, n));
+//		RealVector rvPoints(3);
+//		rvPoints = 0, 10, 10.5;
+//		Timeline::Ptr timeline = Timeline::Ptr(new Timeline(rvPoints));
+//
+//		BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
+//		RandomMatrix<double> matrix_rng(rng, dim, n);
+//		RealMatrix randomDraw = matrix_rng();
+//		LowerTriangularMatrix rates(timeline->length());
+//
+//		RealVector initial(timeline->length());
+//		initial = 0.05;
+//		rates.setColumn(0, initial);
+//
+//		RealVector a(dim), c(dim), v(dim);
+//		a = 0.1; c = 0.1;
+//		ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility (dim, timeline, a, c));
+//
+//		DEBUG_MESSAGE("v = " << v)
+//
+//		LIBORMarketModel<ParameterisedVolatility> model(timeline, pvol);
+//
+//#ifdef INFO_ENABLED
+//		for (int i = 0; i < timeline->length(); i++) {
+//			std::cout << __LOG_PREFIX__;
+//			for (int j = 0; j <= i; j++) {
+//				std::cout << rates(i, j) << " ";
+//			}
+//			std::cout << std::endl;
+//		}
+//#endif
+//
+//		model(randomDraw, rates);
+//
+//#ifdef INFO_ENABLED
+//		for (int i = 0; i < timeline->length(); i++) {
+//			std::cout << __LOG_PREFIX__;
+//			for (int j = 0; j <= i; j++) {
+//				std::cout << rates(i, j) << " ";
+//			}
+//			std::cout << std::endl;
+//		}
+//#endif
+//	}
+//	catch (std::logic_error e) {
+//		std::cerr << e.what() << std::endl;
+//	}
+//	return 0;
+//}
 
 //int main3()
 //{

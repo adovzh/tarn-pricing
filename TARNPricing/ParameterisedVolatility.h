@@ -9,7 +9,7 @@ namespace tarnpricing {
 
 class ParameterisedVolatility {
 public:
-	ParameterisedVolatility(int _dim, const Timeline::Ptr _timeline, RealVector& _a, const RealVector& _c): dim(_dim), timeline(_timeline), a(_a), c(_c) {}
+	ParameterisedVolatility(int _dim, const Timeline::ConstPtr& _timeline, RealVector& _a, const RealVector& _c): dim(_dim), timeline(_timeline), a(_a), c(_c) {}
 	int dimension() const { return dim; };
 	void operator()(int i, int j, RealVector& sigma) const;
 
@@ -17,14 +17,14 @@ public:
 	typedef boost::shared_ptr<const ParameterisedVolatility> ConstPtr;
 private:
 	int dim;
-	Timeline::Ptr timeline;
+	const Timeline::ConstPtr timeline;
 	RealVector a;
 	RealVector c;
 };
 
 inline void ParameterisedVolatility::operator()(int i, int j, RealVector& sigma) const
 {
-	Timeline& t = *timeline;
+	const Timeline& t = *timeline;
 
 	sigma = c * exp(-a * (t(j) - t(i)));
 }
