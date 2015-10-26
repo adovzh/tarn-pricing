@@ -10,7 +10,6 @@ namespace tarnpricing {
 
 class Timeline {
 public:
-	// constructor is inlined
 	Timeline(double start, double maturity, int periods);
 	Timeline(const RealVector& points);
 

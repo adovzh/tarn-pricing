@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <boost/make_shared.hpp>
 #include "CapletPayoff.h"
 #include "Logging.h"
 
@@ -8,7 +9,8 @@ CapletPayoff::CapletPayoff(double start, double fixing, double payment, double s
 {
 	RealVector vTimeline(3);
 	vTimeline = start, fixing, payment;
-	setTimeline(Timeline::ConstPtr(new Timeline(vTimeline)));
+	Timeline::ConstPtr timeline = boost::make_shared<const Timeline>(vTimeline);
+	setTimeline(timeline);
 }
 
 double CapletPayoff::operator()(const LowerTriangularMatrix& underlying) const

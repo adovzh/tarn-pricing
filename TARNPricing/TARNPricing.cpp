@@ -53,10 +53,11 @@ int main()
 	{
 		const int dim = 3;
 		const int n = 2;
+		const double K = 0.055;
 
 		RealVector rvPoints(n + 1);
 		rvPoints = 0, 10, 10.5;
-		Timeline::ConstPtr timeline = Timeline::ConstPtr(new Timeline(rvPoints));
+		Timeline::ConstPtr timeline(new Timeline(rvPoints));
 
 		ranlib::NormalUnit<double> normal;
 		// normal.seed((unsigned int)time(0));
@@ -71,13 +72,13 @@ int main()
 		ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility(dim, timeline, a, c));
 
 		LIBORMarketModel<ParameterisedVolatility>::Ptr model(new LIBORMarketModel<ParameterisedVolatility>(timeline, pvol, initial));
-		CapletPayoff::ConstPtr payoff(new CapletPayoff(0.0, 10.0, 10.5, .05));
+		CapletPayoff::ConstPtr payoff(new CapletPayoff(0.0, 10.0, 10.5, K));
 		Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix> mapping(model, payoff);
 
 		MonteCarloEngine<RealMatrix, double, RandomMatrix<double> > engine(boost::bind(&Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix>::mapping, &mapping, _1), matrix_rng);
 		BoostAccumulator<double>::type accumulator;
 
-		engine.simulate(accumulator, 10000);
+		engine.simulate(accumulator, 10000000);
 	
 		INFO_MESSAGE("Mean: "<< mean(accumulator))
 		INFO_MESSAGE("Stdev: " << std::sqrt(variance(accumulator) / (count(accumulator) - 1)))
@@ -86,9 +87,9 @@ int main()
 		RealVector sigmaVec(dim);
 		(*pvol)(0, 1, sigmaVec);
 		double sigma2 = blitz::sum(sigmaVec * sigmaVec);
-		double d1 = (log(.05 / .05) + sigma2 * 10 / 2) / sqrt(sigma2 * 10);
-		double d2 = (log(.05 / .05) - sigma2 * 10 / 2) / sqrt(sigma2 * 10);
-		double x = (.05 * boost::math::cdf(s, d1) - .05 * boost::math::cdf(s, d2)) * .5 / ((1 + 10 * .05) * (1 + 0.5 * 0.05));
+		double d1 = (log(initial(0) / K) + sigma2 * timeline->delta(0) / 2) / sqrt(sigma2 * timeline->delta(0));
+		double d2 = (log(initial(0) / K) - sigma2 * timeline->delta(0) / 2) / sqrt(sigma2 * timeline->delta(0));
+		double x = (initial(0) * boost::math::cdf(s, d1) - K * boost::math::cdf(s, d2)) * .5 / ((1 + timeline->delta(0) * initial(0)) * (1 + timeline->delta(1) * initial(1)));
 		INFO_MESSAGE("theoretical: " << x)
 	}
 	catch (std::logic_error e)
