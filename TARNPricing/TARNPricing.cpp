@@ -18,6 +18,7 @@
 #include "ParameterisedVolatility.h"
 #include "Mapping.h"
 #include "CapletPayoff.h"
+#include "Config.h"
 
 using namespace tarnpricing;
 using namespace boost::accumulators;
@@ -46,29 +47,76 @@ public:
 	double count() const { return n; }
 };
 
+template<typename T>
+std::ostream& operator<<(std::ostream& out, const std::vector<T>& v)
+{
+	
+	if (!v.empty())
+	{
+		out << '[';
+		std::copy(v.begin(), v.end(), std::ostream_iterator<T>(out, ", "));
+		out << "\b\b]";
+	}
+	else out << "[]";
+
+
+	return out;
+}
 
 int main()
 {
 	try 
 	{
-		const int dim = 3;
-		const int n = 2;
-		const double K = 0.055;
+		Config::ConstPtr config = Config::parse("parameters.csv");
+
+		const int dim = config->getInt("dim");
+		DEBUG_MESSAGE("Dimension of underlying Brownian Motions (dim): " << dim)
+
+		const int n = config->getInt("n");
+		DEBUG_MESSAGE("Number of LIBOR rates (n): " << n)
+
+		const double K = config->getDouble("Strike");
+		DEBUG_MESSAGE("Strike: " << K)
+
+		const int nSim = config->getInt("nSim");
+		DEBUG_MESSAGE("Number of simulations (nSim): " << nSim)
+
+		std::vector<double> covar_a;
+		config->getDoubles("covar_a", covar_a);
+		DEBUG_MESSAGE("covar_a: " << covar_a)
+
+		std::vector<double> covar_c;
+		config->getDoubles("covar_c", covar_c);
+		DEBUG_MESSAGE("covar_c: " << covar_c)
+
+		std::vector<double> initial_rates;
+		config->getDoubles("initial", initial_rates);
+		DEBUG_MESSAGE("Initial forward curve (initial_rates)" << initial_rates)
 
 		RealVector rvPoints(n + 1);
 		rvPoints = 0, 10, 10.5;
 		Timeline::ConstPtr timeline(new Timeline(rvPoints));
 
 		ranlib::NormalUnit<double> normal;
-		// normal.seed((unsigned int)time(0));
+		normal.seed((unsigned int)time(0));
 		BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &normal);
 		RandomMatrix<double> matrix_rng(rng, dim, n);
 
-		RealVector initial(n);
-		initial = 0.05;
+		double* initialRatesData = new double[initial_rates.size()];
+		std::copy(initial_rates.begin(), initial_rates.end(), initialRatesData);
+		RealVector initial(initialRatesData, blitz::shape(n), blitz::deleteDataWhenDone);
+		DEBUG_MESSAGE("initial = " << initial)
 
-		RealVector a(dim), c(dim), v(dim);
-		a = 0.1; c = 0.1;
+		double* covar_a_data = new double[covar_a.size()];
+		std::copy(covar_a.begin(), covar_a.end(), covar_a_data);
+		RealVector a(covar_a_data, blitz::shape(dim), blitz::deleteDataWhenDone);
+		DEBUG_MESSAGE("a = " << a)
+
+		double* covar_c_data = new double[covar_c.size()];
+		std::copy(covar_c.begin(), covar_c.end(), covar_c_data);
+		RealVector c(covar_c_data, blitz::shape(dim), blitz::deleteDataWhenDone);
+		DEBUG_MESSAGE("c = " << c)
+
 		ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility(dim, timeline, a, c));
 
 		LIBORMarketModel<ParameterisedVolatility>::Ptr model(new LIBORMarketModel<ParameterisedVolatility>(timeline, pvol, initial));
@@ -78,23 +126,37 @@ int main()
 		MonteCarloEngine<RealMatrix, double, RandomMatrix<double> > engine(boost::bind(&Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix>::mapping, &mapping, _1), matrix_rng);
 		BoostAccumulator<double>::type accumulator;
 
-		engine.simulate(accumulator, 10000000);
+		engine.simulate(accumulator, nSim);
 	
-		INFO_MESSAGE("Mean: "<< mean(accumulator))
-		INFO_MESSAGE("Stdev: " << std::sqrt(variance(accumulator) / (count(accumulator) - 1)))
+		double avg = mean(accumulator);
+		double stdev = std::sqrt(variance(accumulator) / (count(accumulator) - 1));
+		double lowerBound = avg - 1.96 * stdev;
+		double upperBound = avg + 1.96 * stdev;
+
+		INFO_MESSAGE("Mean: " << avg)
+		INFO_MESSAGE("Stdev: " << stdev)
+		INFO_MESSAGE("95% confidence interval: [" << lowerBound << ", " << upperBound << "]");
 
 		boost::math::normal s;
 		RealVector sigmaVec(dim);
 		(*pvol)(0, 1, sigmaVec);
 		double sigma2 = blitz::sum(sigmaVec * sigmaVec);
-		double d1 = (log(initial(0) / K) + sigma2 * timeline->delta(0) / 2) / sqrt(sigma2 * timeline->delta(0));
-		double d2 = (log(initial(0) / K) - sigma2 * timeline->delta(0) / 2) / sqrt(sigma2 * timeline->delta(0));
-		double x = (initial(0) * boost::math::cdf(s, d1) - K * boost::math::cdf(s, d2)) * .5 / ((1 + timeline->delta(0) * initial(0)) * (1 + timeline->delta(1) * initial(1)));
+		DEBUG_MESSAGE("sigma2: " << sigma2)
+		double d1 = (log(initial(1) / K) + sigma2 * timeline->delta(0) / 2) / sqrt(sigma2 * timeline->delta(0));
+		double d2 = (log(initial(1) / K) - sigma2 * timeline->delta(0) / 2) / sqrt(sigma2 * timeline->delta(0));
+		double x = (initial(1) * boost::math::cdf(s, d1) - K * boost::math::cdf(s, d2)) * timeline->delta(1) / ((1 + timeline->delta(0) * initial(0)) * (1 + timeline->delta(1) * initial(1)));
 		INFO_MESSAGE("theoretical: " << x)
+
+		bool withinBounds = x > lowerBound && x < upperBound;
+		INFO_MESSAGE("Within confidence bounds: " << (withinBounds ? "yes" : "no"))
+	}
+	catch (const boost::bad_lexical_cast& e)
+	{
+		ERROR_MESSAGE("Conversion error: " << e.what())
 	}
 	catch (std::logic_error e)
 	{
-		std::cerr << e.what() << std::endl;
+		ERROR_MESSAGE(e.what())
 	}
 
 	return 0;

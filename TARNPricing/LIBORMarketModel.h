@@ -40,24 +40,24 @@ private:
 template <typename VOL, typename VOLCPTR>
 void LIBORMarketModel<VOL, VOLCPTR>::operator()(const RealMatrix& x, LowerTriangularMatrix& underlyingValues)
 {
-	DEBUG_MESSAGE("Number of points: " << timeline()->length())
+	TRACE_MESSAGE("Number of points: " << timeline()->length())
 	int n = timeline()->length();
 	const VOL& vol = *pvol;
 
 	for (int i = 0; i < n - 1; i++)
 	{
-		DEBUG_MESSAGE("Simulation step T[" << i << "]")
+		TRACE_MESSAGE("Simulation step T[" << i << "]")
 		RealVector z = x(blitz::Range::all(), i);
 
 		for (int j = i + 1; j < n; j++)
 		{
-			DEBUG_MESSAGE("Simulating L_" << j << "(t_" << i + 1 << ')')
+			TRACE_MESSAGE("Simulating L_" << j << "(t_" << i + 1 << ')')
 			RealVector v(vol.dimension());
 			vol(i, j, v);
 
 			// sigma and Z dot-product
 			double sz = blitz::sum(v * z);
-			DEBUG_MESSAGE("sz: " << sz)
+			TRACE_MESSAGE("sz: " << sz)
 
 			// calculate drift
 			// pre-calculate sigma norm squared
@@ -65,9 +65,9 @@ void LIBORMarketModel<VOL, VOLCPTR>::operator()(const RealMatrix& x, LowerTriang
 			double drift = calculateDrift(underlyingValues, v, vNormSq, i, j);
 
 			double delta = timeline()->delta(i);
-			DEBUG_MESSAGE("delta_" << i << ": " << delta)
+			TRACE_MESSAGE("delta_" << i << ": " << delta)
 			underlyingValues(j, i + 1) = underlyingValues(j, i) * exp((drift - vNormSq / 2) * delta + sqrt(delta) * sz);
-			DEBUG_MESSAGE("=========================")
+			TRACE_MESSAGE("=========================")
 		}
 	}
 }
