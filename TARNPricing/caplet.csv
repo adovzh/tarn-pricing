@@ -1,7 +1,8 @@
+program, caplet
 dim, 3
 n,2
-Strike, 0.033
+Strike, 0.04
 nSim, 4000000
-initial,0.05, 0.033
+initial,0.05, 0.045
 covar_a,0.1,0.11,0.12
 covar_c,0.13,0.125,0.115

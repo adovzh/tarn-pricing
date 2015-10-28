@@ -3,9 +3,8 @@
 
 #include <boost/function.hpp>
 #include <blitz/array.h>
-#include "TARNPricing.h"
 
-TP_NAMESPACE(tarnpricing)
+namespace tarnpricing {
 
 template<typename T>
 struct Vector
@@ -32,6 +31,6 @@ struct BoostRNG
 
 typedef boost::function<RealVector (double, double)> Volatility;
 
-TP_NAMESPACE_END
+} // namespace tarnpricing
 
 #endif // __TARNPRICING_TYPES_H

@@ -1,6 +1,14 @@
 #ifndef __LOGGING_H
 #define __LOGGING_H
 
+/**
+ * Simple level-based logging framework. The level of the logging for a project is defined using one 
+ * of a macro definitions in the format LOG_LEVEL_*, e.g. LOG_LEVEL_INFO. The framework then eliminates
+ * all messages with the priority less than the chosen level, leaving the others.
+ *
+ * If no log level is set, all logging output is eliminated.
+ */
+
 #define LEVEL_ALL	0
 #define LEVEL_TRACE 5
 #define LEVEL_DEBUG 10
@@ -28,7 +36,6 @@
 #define __BASEF__			(strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #define __LOG_PREFIX__		__BASEF__ << ':' << __LINE__ << " - "
 
-#include <iostream>
 #define LOG_MESSAGE(level, x)		std::cout << '[' << level << "] " << __LOG_PREFIX__ << x << std::endl;
 
 #if LOG_LEVEL <= LEVEL_TRACE

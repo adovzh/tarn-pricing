@@ -7,9 +7,12 @@
 #include <boost/lexical_cast.hpp>
 
 namespace {
+	// local handy type definitions
 	typedef std::vector<std::string> StrVec;
 	typedef std::map<std::string, StrVec> StrVecMap;
 	typedef boost::shared_ptr<StrVecMap> StrVecMapPtr;
+
+	// local auxiliary functions
 
 	inline void push_element(StrVec& line, std::string& current)
 	{
@@ -56,6 +59,14 @@ double Config::getDouble(const std::string& key) const
 	StrVecMap::const_iterator it = data->find(key);
 
 	if (it != data->cend()) return boost::lexical_cast<double>(it->second.front().c_str());
+	else throw std::logic_error("No key found: " + key);
+}
+
+std::string Config::getString(const std::string& key) const
+{
+	StrVecMap::const_iterator it = data->find(key);
+
+	if (it != data->cend()) return it->second.front();
 	else throw std::logic_error("No key found: " + key);
 }
 
@@ -127,6 +138,7 @@ Config::ConstPtr Config::parse(const char* fileName)
 
 		c = f.get();
 	}
+
 
 	push_line(data, line, current);
 	ptr.reset(new Config(data));

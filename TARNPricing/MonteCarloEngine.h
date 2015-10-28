@@ -10,28 +10,34 @@
 
 namespace tarnpricing {
 
+/**
+ * Boost accumulator of type T. Used to gather results from Monte-Carlo simulation.
+ */
 template<typename T>
 struct BoostAccumulator
 {
 	typedef boost::accumulators::accumulator_set<T, boost::accumulators::stats<boost::accumulators::tag::variance(boost::accumulators::lazy)> > type;
 };
 
+/**
+ * Generic Monte-Carlo engine implementation. Template parameter ARG specifies the type of the random draw per simulation,
+ * RETTYPE specifies the type of the payoff, RNG specifies a functor type, used to generate a random draw (defaults to Boost 
+ * functor) and ACCUMTYPE specifies the type of the accumulator (defaults to Boost accumulator).
+ */
 template<typename ARG, typename RETTYPE, typename RNG = BoostRNG<ARG>::type, typename ACCUMTYPE = BoostAccumulator<RETTYPE>::type>
 class MonteCarloEngine {
 	// handy type definitions
 	typedef boost::function<RETTYPE (ARG)> Functor;
 
-	// boost::math::normal normDist;
-	Functor functor;
-	RNG rng; // random number generator
+	Functor functor; ///< functor, specifies the mapping between random draw and a payoff
+	RNG rng; ///< random number generator
 
 public:
 	// constructor
 	MonteCarloEngine(Functor a_functor, RNG& a_rng): functor(a_functor), rng(a_rng) {}
 
-	// api methods
+	// simulate numSimulations times and accumulate the results
 	void simulate(ACCUMTYPE& accumulator, unsigned long numSimulations);
-	// void sumulate(ACCUMTYPE& accumulator, unsigned long initialNumSimulations, double requiredAccuracy, double confidence = .95);
 };
 
 template<typename ARG, typename RETTYPE, typename RNG, typename ACCUMTYPE>

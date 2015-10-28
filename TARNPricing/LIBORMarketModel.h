@@ -9,31 +9,39 @@
 
 namespace tarnpricing {
 
+/**
+ * Template that simulates initial term structure of forward LIBOR rates through across the timeline.
+ * For simplicity, the same timeline is used for both term structure of LIBOR rates and their evolution.
+ *
+ * The template parameter VOL class must implement a member function dimension() 
+ * and define operator()(int i, int j, RealVector& sigma), that fills a vector sigma with the values of the volatility
+ * at time T_i for the rate L_j. ParameterisedVolatility class satisfied these requirements.
+ */
 template<typename VOL, typename VOLCPTR = VOL::ConstPtr>
 class LIBORMarketModel
 {
 public:
 	LIBORMarketModel(const Timeline::ConstPtr& _timeline, const VOLCPTR& _vol, const RealVector& _initial): m_timeline(_timeline), pvol(_vol), m_initial(_initial) {}
-	// Generate the realisation
+	/// Generate the realisation
 	void operator()(const RealMatrix& x, LowerTriangularMatrix& underlyingValues);
-	// retrieves the timeline
+	/// retrieves the timeline
 	const Timeline::ConstPtr& timeline() const { return m_timeline; }
-	// sets the timeline
+	/// sets the timeline
 	void timeline(const Timeline::ConstPtr& _timeline) { m_timeline = _timeline; }
-	// retrieves the initial
+	/// retrieves the initial
 	const RealVector& initial() const { return m_initial; }
-	// sets initial vector
+	/// sets initial vector
 	void initial(const RealVector& _initial) { m_initial = _initial; }
 
-	// type definitions
+	/// type definitions
 	typedef boost::shared_ptr<LIBORMarketModel> Ptr;
 	typedef boost::shared_ptr<const LIBORMarketModel> ConstPtr;
 private:
-	Timeline::ConstPtr m_timeline;
-	const VOLCPTR pvol;
-	RealVector m_initial;
+	Timeline::ConstPtr m_timeline; ///< Timeline for both term struture of simulated rates and their evolution.
+	const VOLCPTR pvol;	///< Smart pointer to a constant volatility.
+	RealVector m_initial; ///< Initial term structure of forward LIBOR rates.
 
-	// calculate drift term
+	/// calculate drift term
 	double calculateDrift(const LowerTriangularMatrix& underlying, const RealVector& sj, double vNormSq, int i, int j);
 };
 
@@ -96,7 +104,6 @@ inline double LIBORMarketModel<VOL, VOLCPTR>::calculateDrift(const LowerTriangul
 
 	// now the last term
 	deltaL = timeline()->delta(j) * underlying(j, i);
-	// driftTerm = blitz::sum(sj * sj) * deltaL / (1 + deltaL);
 	driftTerm = vNormSq * deltaL / (1 + deltaL);
 
 	drift += driftTerm;

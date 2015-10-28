@@ -5,6 +5,9 @@
 
 namespace tarnpricing {
 
+/**
+ * Random matrix generator, inspired by RandomArray implementation.
+ */
 template<typename rv_type, typename RNG = BoostRNG<rv_type>::type>
 class RandomMatrix
 {

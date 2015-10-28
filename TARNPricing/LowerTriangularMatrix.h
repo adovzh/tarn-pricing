@@ -5,7 +5,6 @@
 #include "Types.h"
 
 namespace tarnpricing {
-
 	//typedef RealMatrix LowerTriangularMatrix;
 
 class LowerTriangularMatrix
