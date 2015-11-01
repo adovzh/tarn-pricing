@@ -2,6 +2,7 @@
 #define __PARAMETERISED_VOLATILITY_H
 
 #include <boost/shared_ptr.hpp>
+
 #include "Types.h"
 #include "Timeline.h"
 

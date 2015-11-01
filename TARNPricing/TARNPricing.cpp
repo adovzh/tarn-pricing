@@ -7,7 +7,8 @@
 #include <boost/accumulators/statistics/moment.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
 #include <boost/bind.hpp>
-#include <boost/math/distributions/normal.hpp>
+
+#define LOG_LEVEL_INFO
 
 #include "Logging.h"
 #include "MonteCarloEngine.h"
@@ -18,37 +19,93 @@
 #include "ParameterisedVolatility.h"
 #include "Mapping.h"
 #include "CapletPayoff.h"
+#include "TARNInverseFloaterPayoff.h"
 #include "Config.h"
 
 using namespace tarnpricing;
-using namespace boost::accumulators;
 
-double dummy_functor(double arg)
-{
-	return 1.0;
+namespace {
+	
+	/**
+	 *	Auxiliary function that copies the contents of the vector
+	 *  to a newly allocated C-style array of size len.
+	 *  Only first len elements of the vector will be copied.
+	 *  If the size of the vector is less than len, the last element
+	 *  will be replicated, so that the array always contains len elements.
+	 * 
+	 *	This function allocates memory, that has to be reclaimed by the caller.
+	 *  One useful scenario for it is to create Blitz++ Array from the existing data.
+	 *  Blitz++ will then take care of the memory.
+	 */
+	double* copyVectorData(int len, const std::vector<double>& v)
+	{
+		double* data = new double[len];
+		std::vector<double>::const_iterator it = v.cbegin();
+		double lastElement = 0.0;
+
+		for (int i = 0;  i < len; i++)
+			data[i] = (it != v.cend()) ? (lastElement = *it++) : lastElement;
+
+		return data;
+	}
+
 }
 
-double identity(double arg)
-{
-	return arg;
+namespace tarnpricing {
+	// forward declarations of supported programs
+	void tarn(const Config::ConstPtr&);
+	void caplet(const Config::ConstPtr&);
 }
 
-class SimpleAccum
+int main(int argc, char* argv[])
 {
-	double running_sum;
-	double sum2;
-	int n;
-public:
-	SimpleAccum(): running_sum(0.0), sum2(0.0), n(0) {}
-	SimpleAccum& operator()(double j) { running_sum += j; sum2 += j * j; n++; return *this; }
-	double sum() const { return running_sum; }
-	double mean() const { return running_sum / n; }
-	double stdev() const { double m = mean(); return sqrt(((sum2 / n) - m * m) / (n - 1)); }
-	double count() const { return n; }
-};
+	try 
+	{
+		char* configFile = (argc > 1) ? argv[1] : "caplet.csv";
+		INFO_MESSAGE("Reading configuration from " << configFile)
+		Config::ConstPtr config = Config::parse(configFile);
+
+		if (!config) 
+		{
+			std::cout << std::endl;
+			std::cout << "No csv file specified or default 'parameters.csv' cannot be found." << std::endl;
+			std::cout << "USAGE: TARNPricing.exe <parameters csv file>" << std::endl;
+			return -1;
+		}
+
+		std::string program = config->getString("program");
+
+		INFO_MESSAGE("Running program " << program)
+
+		try {
+			std::string description = config->getString("description");
+			INFO_MESSAGE("Description: " << description)
+		} catch (const std::logic_error&) {
+			// ignore
+		}
+
+		if (program == "caplet")
+			caplet(config);
+		else if (program == "tarn")
+			tarn(config);
+		else
+			INFO_MESSAGE("No program to run, please define 'program' in the configuration file");
+	}
+	catch (const boost::bad_lexical_cast& e)
+	{
+		ERROR_MESSAGE("Conversion error: " << e.what())
+	}
+	catch (std::logic_error e)
+	{
+		ERROR_MESSAGE(e.what())
+	}
+
+	return 0;
+}
 
 namespace tarnpricing {
 
+// why not override opertor<<() for standard verctors?
 template<typename T>
 std::ostream& operator<<(std::ostream& out, const std::vector<T>& v)
 {
@@ -65,6 +122,88 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& v)
 	return out;
 }
 
+// pricing a Target Redemption Note
+void tarn(const Config::ConstPtr& config)
+{
+	const int dim = config->getInt("dim");
+	DEBUG_MESSAGE("Dimension of underlying Brownian Motions (dim): " << dim)
+
+	const int n = config->getInt("n");
+	DEBUG_MESSAGE("Number of LIBOR rates (n): " << n)
+
+	const double strike = config->getDouble("Target");
+	DEBUG_MESSAGE("Target coupon: " << strike)
+
+	const double c1 = config->getDouble("c1");
+	DEBUG_MESSAGE("c1: " << c1)
+
+	const double K = config->getDouble("K");
+	DEBUG_MESSAGE("K: " << K);
+
+	const double alpha = config->getDouble("alpha");
+	DEBUG_MESSAGE("alpha: " << alpha)
+
+	const int nSim = config->getInt("nSim");
+	DEBUG_MESSAGE("Number of simulations (nSim): " << nSim)
+
+	std::vector<double> covar_a;
+	config->getDoubles("covar_a", covar_a);
+	DEBUG_MESSAGE("covar_a: " << covar_a)
+
+	std::vector<double> covar_c;
+	config->getDoubles("covar_c", covar_c);
+	DEBUG_MESSAGE("covar_c: " << covar_c)
+
+	std::vector<double> initial_rates;
+	config->getDoubles("initial", initial_rates);
+	DEBUG_MESSAGE("Initial forward curve (initial_rates)" << initial_rates)
+
+	RealVector rvPoints(n + 1);
+	blitz::firstIndex i;
+	rvPoints = i * 0.5;
+	Timeline::ConstPtr timeline(new Timeline(rvPoints));
+	DEBUG_MESSAGE("Time points: " << *timeline)
+
+	ranlib::NormalUnit<double> normal;
+	normal.seed((unsigned int)time(0));
+	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &normal);
+	RandomMatrix<double> matrix_rng(rng, dim, n);
+
+	double* initialRatesData = copyVectorData(n + 1, initial_rates);
+	RealVector initial(initialRatesData, blitz::shape(n), blitz::deleteDataWhenDone);
+	DEBUG_MESSAGE("initial = " << initial)
+
+	double* covar_a_data = copyVectorData(dim, covar_a);
+	RealVector a(covar_a_data, blitz::shape(dim), blitz::deleteDataWhenDone);
+	DEBUG_MESSAGE("a = " << a)
+
+	double* covar_c_data = copyVectorData(dim, covar_c);
+	RealVector c(covar_c_data, blitz::shape(dim), blitz::deleteDataWhenDone);
+	DEBUG_MESSAGE("c = " << c)
+
+	ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility(dim, timeline, a, c));
+
+	LIBORMarketModel<ParameterisedVolatility>::Ptr model(new LIBORMarketModel<ParameterisedVolatility>(timeline, pvol, initial));
+	TARNInverseFloaterPayoff::ConstPtr payoff(new TARNInverseFloaterPayoff(timeline, strike, c1, K, alpha));
+	Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix> mapping(model, payoff);
+
+	MonteCarloEngine<RealMatrix, double, RandomMatrix<double> > engine(boost::bind(&Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix>::mapping, &mapping, _1), matrix_rng);
+	BoostAccumulator<double>::type accumulator;
+
+	INFO_MESSAGE("Running " << nSim << " simulations")
+	engine.simulate(accumulator, nSim);
+	
+	double avg = boost::accumulators::mean(accumulator);
+	double stdev = std::sqrt(boost::accumulators::variance(accumulator) / (boost::accumulators::count(accumulator) - 1));
+	double lowerBound = avg - 1.96 * stdev;
+	double upperBound = avg + 1.96 * stdev;
+
+	INFO_MESSAGE("Monte-Carlo estimate: " << avg)
+	INFO_MESSAGE("Stdev: " << stdev)
+	INFO_MESSAGE("95% confidence interval: [" << lowerBound << ", " << upperBound << "]")
+} // tarnpricing::tarn
+
+// Testing a LIBOR Market Model on a caplet
 void caplet(const Config::ConstPtr& config)
 {
 	const int dim = config->getInt("dim");
@@ -124,17 +263,17 @@ void caplet(const Config::ConstPtr& config)
 	MonteCarloEngine<RealMatrix, double, RandomMatrix<double> > engine(boost::bind(&Mapping<LIBORMarketModel<ParameterisedVolatility>,RealMatrix>::mapping, &mapping, _1), matrix_rng);
 	BoostAccumulator<double>::type accumulator;
 
-	DEBUG_MESSAGE("Running " << nSim << " simulations")
+	INFO_MESSAGE("Running " << nSim << " simulations")
 	engine.simulate(accumulator, nSim);
 	
-	double avg = mean(accumulator);
-	double stdev = std::sqrt(variance(accumulator) / (count(accumulator) - 1));
+	double avg = boost::accumulators::mean(accumulator);
+	double stdev = std::sqrt(boost::accumulators::variance(accumulator) / (boost::accumulators::count(accumulator) - 1));
 	double lowerBound = avg - 1.96 * stdev;
 	double upperBound = avg + 1.96 * stdev;
 
-	INFO_MESSAGE("Mean: " << avg)
+	INFO_MESSAGE("Monte-Carlo estimate: " << avg)
 	INFO_MESSAGE("Stdev: " << stdev)
-	INFO_MESSAGE("95% confidence interval: [" << lowerBound << ", " << upperBound << "]");
+	INFO_MESSAGE("95% confidence interval: [" << lowerBound << ", " << upperBound << "]")
 
 	boost::math::normal s;
 	RealVector sigmaVec(dim);
@@ -148,187 +287,6 @@ void caplet(const Config::ConstPtr& config)
 
 	bool withinBounds = x > lowerBound && x < upperBound;
 	INFO_MESSAGE("Within confidence bounds: " << (withinBounds ? "yes" : "no"))
-}
+} // tarnpricing::caplet()
 
 } // namespace tarnpricing
-
-int main(int argc, char* argv[])
-{
-	try 
-	{
-		char* configFile = (argc > 1) ? argv[1] : "parameters.csv";
-		INFO_MESSAGE("Reading configuration from " << configFile)
-		Config::ConstPtr config = Config::parse(configFile);
-
-		if (!config) return -1;
-
-		std::string program = config->getString("program");
-		INFO_MESSAGE("Running program " << program)
-		if (program == "caplet")
-			caplet(config);
-		else
-			DEBUG_MESSAGE("No program to run, please define 'program' in the configuration file")
-	}
-	catch (const boost::bad_lexical_cast& e)
-	{
-		ERROR_MESSAGE("Conversion error: " << e.what())
-	}
-	catch (std::logic_error e)
-	{
-		ERROR_MESSAGE(e.what())
-	}
-
-	return 0;
-}
-
-//int main4()
-//{
-//	try
-//	{
-//		const int n = 1;
-//		const int dim = 1;
-//
-//		// Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 10, n));
-//		RealVector rvPoints(3);
-//		rvPoints = 0, 10, 10.5;
-//		Timeline::Ptr timeline = Timeline::Ptr(new Timeline(rvPoints));
-//
-//		BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
-//		RandomMatrix<double> matrix_rng(rng, dim, n);
-//		RealMatrix randomDraw = matrix_rng();
-//		LowerTriangularMatrix rates(timeline->length());
-//
-//		RealVector initial(timeline->length());
-//		initial = 0.05;
-//		rates.setColumn(0, initial);
-//
-//		RealVector a(dim), c(dim), v(dim);
-//		a = 0.1; c = 0.1;
-//		ParameterisedVolatility::ConstPtr pvol(new ParameterisedVolatility (dim, timeline, a, c));
-//
-//		DEBUG_MESSAGE("v = " << v)
-//
-//		LIBORMarketModel<ParameterisedVolatility> model(timeline, pvol);
-//
-//#ifdef INFO_ENABLED
-//		for (int i = 0; i < timeline->length(); i++) {
-//			std::cout << __LOG_PREFIX__;
-//			for (int j = 0; j <= i; j++) {
-//				std::cout << rates(i, j) << " ";
-//			}
-//			std::cout << std::endl;
-//		}
-//#endif
-//
-//		model(randomDraw, rates);
-//
-//#ifdef INFO_ENABLED
-//		for (int i = 0; i < timeline->length(); i++) {
-//			std::cout << __LOG_PREFIX__;
-//			for (int j = 0; j <= i; j++) {
-//				std::cout << rates(i, j) << " ";
-//			}
-//			std::cout << std::endl;
-//		}
-//#endif
-//	}
-//	catch (std::logic_error e) {
-//		std::cerr << e.what() << std::endl;
-//	}
-//	return 0;
-//}
-
-//int main3()
-//{
-//	Timeline::Ptr timeline = Timeline::Ptr(new Timeline(0, 5, 10));
-//	LIBORMarketModel model(timeline);
-//
-//	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
-//	RandomMatrix<double> matrix_rng(rng, 3, 5);
-//	RealMatrix randomDraw = matrix_rng();
-//	LowerTriangularMatrix rates(timeline->length());
-//
-//	int shift = 4;
-//	RealVector initial(timeline->length() - shift);
-//	initial = 0.05;
-//	rates.setColumn(shift, initial);
-//
-//	std::cout << "Underlying rates" << rates << std::endl;
-//
-//	model(randomDraw, rates);
-//
-//	for (int i = 0; i < timeline->length(); i++) {
-//		for (int j = 0; j <= i; j++) {
-//			std::cout << rates(i, j) << " ";
-//		}
-//		std::cout << std::endl;
-//	}
-//
-//	for (int i = 0; i < timeline->length(); i++)
-//	{
-//		RealVector v(timeline->length() - i);
-//		rates.getColumn(i, v);
-//		std::cout << "Column " << i << ": " << v << std::endl;
-//	}
-//
-//	return 0;
-//}
-//
-//int main2()
-//{
-//	BoostRNG<double>::type rng = boost::bind(&ranlib::NormalUnit<double>::random, &ranlib::NormalUnit<double>());
-//	RandomMatrix<double> matrix_rng(rng, 3, 5);
-//
-//	Matrix<double>::type& matrix = matrix_rng();
-//	std::cout << matrix << std::endl;
-//
-//	Timeline T(0.0, 5.0, 10);
-//	std::cout << "Timeline: " << T << std::endl;
-//
-//	blitz::Array<double,1> time_points(5);
-//	time_points = .35, .85, 1.15, 1.75, 1.89;
-//	Timeline T2(time_points);
-//	std::cout << "Timeline: " << T2 << std::endl;
-//
-//	LowerTriangularMatrix m(4);
-//
-//	for (int i = 0, s = 0; i < 4; i++)
-//		for (int j = 0; j <= i; j++, s++)
-//			m(i, j) = s + .07;
-//
-//	// std::cout << "Underlying vector: " << m.values << std::endl;
-//
-//	for (int i = 0; i < 4; i++)
-//		for (int j = 0; j <= i; j++)
-//			std::cout << "m(" << i << "," << j << ") = " << m(i, j) << std::endl;
-//
-//	return 0;
-//}
-//
-//int main1()
-//{
-//	// ranlib::NormalUnit<double> normalDist;
-//	BoostRNG<double>::type rng = boost::bind(std::mem_fun(&ranlib::NormalUnit<double>::random), &ranlib::NormalUnit<double>());
-//	BoostAccumulator<double>::type accumulator;
-//	MonteCarloEngine<double,double> engine(identity, rng);
-//
-//	const unsigned long nSimulations = 10000;
-//	engine.simulate(accumulator, nSimulations);
-//
-//	std::cout << "Hello, World !" << std::endl;
-//	std::cout << "Result: " << mean(accumulator) << std::endl;
-//	
-//	SimpleAccum testAccum;
-//	accumulator_set<double, stats<tag::variance(lazy) > > boostAccumulator;
-//
-//	for (double d = 1.2, i = 0; i < 10; d += 1.1, i++)
-//	{
-//		testAccum(d);
-//		boostAccumulator(d);
-//	}
-//
-//	std::cout << "Mean: " << testAccum.mean() << "\t" << mean(boostAccumulator) << std::endl;
-//	std::cout << "Stdev: " << testAccum.stdev() << "\t" << std::sqrt(variance(boostAccumulator) / (count(boostAccumulator) - 1)) << std::endl;
-//
-//	return 0;
-//}

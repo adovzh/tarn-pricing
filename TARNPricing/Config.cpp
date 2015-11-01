@@ -1,10 +1,11 @@
-#include "Config.h"
-
 #include <iostream>
 #include <fstream>
 #include <strstream>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
+
+#include "Config.h"
+#include "Logging.h"
 
 namespace {
 	// local handy type definitions
@@ -96,16 +97,15 @@ Config::ConstPtr Config::parse(const char* fileName)
 		f.open(fileName);
 		f.exceptions(mask);
 	}
-	catch(std::ios_base::failure& e)
+	catch(std::ios_base::failure&)
 	{
-		std::cerr << e.what() << std::endl;
-		std::cerr << e.code().message() << std::endl;
-
+#ifdef ERROR_ENABLED
 		const int bufferSize = 256;
 		char buffer[bufferSize];
 		std::strstream msg;
 		msg << "Config::parse(\"" << fileName << "\")";
-		if (!_strerror_s((char*)&buffer, bufferSize, msg.str())) std::cerr << buffer << std::endl;
+		if (!_strerror_s((char*)&buffer, bufferSize, msg.str())) ERROR_MESSAGE(buffer)
+#endif
 
 		return ptr;
 	}
@@ -131,8 +131,21 @@ Config::ConstPtr Config::parse(const char* fileName)
 			case '\n':
 				push_line(data, line, current);
 				break;
+			case '#':
+				state = 1;
+				break;
 			default:
 				current += c;
+			}
+			break;
+
+		case 1:
+			switch(c)
+			{
+			case '\n':
+				f.putback(c);
+				state = 0;
+				break;
 			}
 		}
 

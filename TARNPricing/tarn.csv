@@ -1,0 +1,12 @@
+program, tarn			# name of the program to run
+description, Pricing Target Redemption Note
+dim, 3				# Dimension of the underlying Brownian motion
+n,11				# Number of underlying LIBOR rates to simulate, T_0 < T_1 < ... < T_n < T_(n+1)
+Target, 0.15			# Target coupon of the TARN
+c1,0.1				# first coupon, C_1
+K, 0.075			# K and alpha determine the parameters of in the inverse floater's payoff
+alpha, 2			# C_i = K - alpha * L_i
+nSim, 100000			# Number of Monte-Carlo simultations
+initial,0.05			# Initial LIBOR forward curve (single number means it's flat)
+covar_a,0.1,0.11,0.12		# Volatility function takes the form of c * exp(-a * (t_j - t_i))
+covar_c,0.13,0.125,0.115	# where both c and a are vectors of dimension dim
