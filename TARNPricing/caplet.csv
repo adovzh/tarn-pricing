@@ -2,6 +2,7 @@ program, caplet			# name of the program to run
 description, Testing LIBOR Market Model on a caplet	# program description
 dim, 3				# Dimension of the underlying Brownian motion
 n,2				# Number of underlying LIBOR rates to simulate, T_0 < T_1 < ... < T_n < T_(n+1)
+timeline,0,10,10.5		# Timeline
 Strike, 0.04			# Strike of the caplet
 nSim, 4000000			# Number of Monte-Carlo simultations
 initial,0.05, 0.045		# Initial LIBOR forward curve (single number means it's flat)

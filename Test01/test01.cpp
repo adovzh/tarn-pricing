@@ -68,8 +68,6 @@ int main()
 
 	rho = exp(-.5 * abs((tensor::i - tensor::j) / double(freq)));
 
-	// std::cout << rho << std::endl;
-
 	Vector eigenval;
 	Matrix eigenvec;
 

@@ -2,6 +2,7 @@ program, tarn			# name of the program to run
 description, Pricing Target Redemption Note
 dim, 3				# Dimension of the underlying Brownian motion
 n,11				# Number of underlying LIBOR rates to simulate, T_0 < T_1 < ... < T_n < T_(n+1)
+timeline,0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5	# Timeline
 Target, 0.15			# Target coupon of the TARN
 c1,0.1				# first coupon, C_1
 K, 0.075			# K and alpha determine the parameters of in the inverse floater's payoff
